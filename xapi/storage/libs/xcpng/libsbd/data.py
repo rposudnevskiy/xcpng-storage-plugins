@@ -1,20 +1,14 @@
 #!/usr/bin/env python
 
-from xapi.storage.libs.xcpng.data import QdiskData, Implementation
-from xapi.storage.libs.xcpng.libsbd.qemudisk import SBDQemudisk
-from xapi.storage.libs.xcpng.libsbd.meta import SBDMetadataHandler
+from xapi.storage.libs.xcpng.data import QdiskData as _QdiskData_
+from xapi.storage.libs.xcpng.data import Implementation
+from xapi.storage.libs.xcpng.libsbd.qemudisk import Qemudisk
+from xapi.storage.libs.xcpng.libsbd.meta import MetadataHandler
 
 
-class SBDQdiskData(QdiskData):
-
-    def __init__(self):
-        super(SBDQdiskData, self).__init__()
-        self.MetadataHandler = SBDMetadataHandler
-        self.qemudisk = SBDQemudisk
-
-
-class ZFSImplementation(Implementation):
+class QdiskData(_QdiskData_):
 
     def __init__(self):
-        super(ZFSImplementation, self).__init__()
-        self.Datapath = SBDQdiskData()
+        super(QdiskData, self).__init__()
+        self.MetadataHandler = MetadataHandler()
+        self.qemudisk = Qemudisk

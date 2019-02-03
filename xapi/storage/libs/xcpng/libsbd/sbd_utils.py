@@ -3,11 +3,12 @@
 import re
 import pickle
 
-from subprocess import call, Popen, PIPE
+from subprocess import Popen, PIPE
 from os import system, path
 from time import sleep
 
 from xapi.storage import log
+from xapi.storage.libs.xcpng.utils import call
 
 VOLBLOCKSIZE=4194304
 CHROOT_BASE = '/var/tmp/SBDSR/chroot'
@@ -16,6 +17,7 @@ SHEEP_PORTS_DB = '/var/tmp/SBDSR/sheep_ports'
 
 
 def create_chroot(dbg, name):
+    log.debug("%s: sbd_utils.create_chroot: name: %s " % (dbg, name))
     system("mkdir -p %s/%s/dev" % (CHROOT_BASE, name))
     system("mkdir -p %s/%s/proc" % (CHROOT_BASE, name))
     system("mkdir -p %s/%s/sys" % (CHROOT_BASE, name))
@@ -34,40 +36,42 @@ def create_chroot(dbg, name):
     system("ln -s ../run %s/%s/var/run" % (CHROOT_BASE, name))
     system("ln -s usr/lib64 %s/%s/lib64" % (CHROOT_BASE, name))
 
-
 def delete_chroot(dbg, name):
+    log.debug("%s: sbd_utils.delete_chroot: name: %s " % (dbg, name))
     system("rm -rf %s/%s" % (CHROOT_BASE, name))
 
-
 def set_chroot(dbg, name):
+    log.debug("%s: sbd_utils.set_chroot: name: %s " % (dbg, name))
     system("mount --rbind /dev %s/%s/dev" % (CHROOT_BASE, name))
     system("mount --make-rslave %s/%s/dev" % (CHROOT_BASE, name))
     system("mount --rbind /sys %s/%s/sys" % (CHROOT_BASE, name))
     system("mount --make-rslave %s/%s/sys" % (CHROOT_BASE, name))
     system("mount --rbind /usr/lib64 %s/%s/usr/lib64" % (CHROOT_BASE, name))
+    system("mount -o remount,ro,rbind %s/%s/usr/lib64" % (CHROOT_BASE, name))
     system("mount --make-rslave %s/%s/usr/lib64" % (CHROOT_BASE, name))
     system("mount --rbind /tmp %s/%s/tmp" % (CHROOT_BASE, name))
     system("mount -t proc /proc %s/%s/proc" % (CHROOT_BASE, name))
 
-
 def unset_chroot(dbg, name):
+    log.debug("%s: sbd_utils.unset_chroot: name: %s " % (dbg, name))
     system("mount | grep %s/%s | awk '{print $3}' | sort -rn | xargs -l1 umount -f" % (CHROOT_BASE, name))
     sleep(5)
 
-
 def start_sheepdog_gateway(dbg, port, name):
+    log.debug("%s: sbd_utils.start_sheepdog_gateway: port: %s name: %s " % (dbg, port, name))
     system("chroot %s/%s /usr/sbin/corosync" % (CHROOT_BASE, name))
-    system("chroot %s/%s /usr/sbin/sheep --bindaddr 127.0.0.1 --port %s --cluster corosync --log dir=/var/log,level=debug --gateway" %
+    system("chroot %s/%s /usr/sbin/sheep --bindaddr 0.0.0.0 --port %s --cluster corosync --log dir=/var/log,level=debug --gateway" %
            (CHROOT_BASE, name, port))
     sleep(5)
 
-
 def stop_sheepdog_gateway(dbg, name):
+    log.debug("%s: sbd_utils.stop_sheepdog_gateway: name: %s " % (dbg, name))
     system("chroot %s/%s /usr/bin/pkill sheep" % (CHROOT_BASE, name))
     system("chroot %s/%s /usr/bin/pkill corosync" % (CHROOT_BASE, name))
 
-
 def gen_corosync_conf(dbg, bindnetaddr, mcastaddr, mcastport):
+    log.debug("%s: sbd_utils.gen_corosync_conf: bindnetaddr %s, mcastaddr %s, mcastport %s" %
+              (dbg, bindnetaddr, mcastaddr, mcastport))
     return "compatibility: whitetank\n\
 totem {\n\
 \tversion: 2\n\
@@ -97,16 +101,17 @@ amf {\n\
 \tmode: disabled\n\
 }" % (bindnetaddr, mcastaddr, mcastport)
 
-
 def get_sheep_port(dbg, name):
+    log.debug("%s: sbd_utils.get_sheep_port: name: %s " % (dbg, name))
     SRS_MAX = 32
     port_found = False
     if not path.isfile(SHEEP_PORTS_DB):
         ports = [None] * SRS_MAX
         port = 0
     else:
-        with open(SHEEP_PORTS_DB, 'rb') as f:
-            ports = pickle.load(f)
+        with open(SHEEP_PORTS_DB, 'rb') as fd:
+            ports = pickle.load(fd)
+            fd.close()
 
         port = None
 
@@ -128,30 +133,31 @@ def get_sheep_port(dbg, name):
             raise Exception('Failed to get/allocate port for sheep daemon')
 
     if not port_found:
-        with open(SHEEP_PORTS_DB, 'wb') as f:
-            pickle.dump(ports, f)
+        with open(SHEEP_PORTS_DB, 'wb') as fd:
+            pickle.dump(ports, fd)
+            fd.close()
 
     return START_SHEEP_PORT+port
 
-
 def free_sheep_port(dbg, name):
-    with open(SHEEP_PORTS_DB, 'rb') as f:
-        ports = pickle.load(f)
+    log.debug("%s: sbd_utils.free_sheep_port: name: %s " % (dbg, name))
+    with open(SHEEP_PORTS_DB, 'rb') as fd:
+        ports = pickle.load(fd)
 
     for _index_, _name_ in enumerate(ports):
         if _name_ == name:
             ports[_index_] = None
             break
 
-    with open(SHEEP_PORTS_DB, 'wb') as f:
-        pickle.dump(ports, f)
-
+    with open(SHEEP_PORTS_DB, 'wb') as fd:
+        pickle.dump(ports, fd)
+        fd.close()
 
 def write_corosync_conf(dbg, name, config):
-    fd = open("%s/%s/etc/corosync/corosync.conf" % (CHROOT_BASE, name), "w")
-    fd.write(config)
-    fd.close()
-
+    log.debug("%s: sbd_utils.free_sheep_port: name: %s " % (dbg, name))
+    with open("%s/%s/etc/corosync/corosync.conf" % (CHROOT_BASE, name), "w") as fd:
+        fd.write(config)
+        fd.close()
 
 def dog_vdi_write(dbg, port, vdi_name, buffer='', offset=None, length=None):
     log.debug("%s: sbd_utils.dog_vdi_write: port: %s vdi_name: %s buffer: %s offset: %s length: %s" %
@@ -166,7 +172,6 @@ def dog_vdi_write(dbg, port, vdi_name, buffer='', offset=None, length=None):
     proc.stdin.write(buffer)
     proc.wait()
 
-
 def dog_vdi_read(dbg, port, vdi_name, offset=None, length=None):
     log.debug("%s: sbd_utils.dog_vdi_read: port: %s vdi_name: %s offset: %s length: %s" %
               (dbg, port, vdi_name, offset, length))
@@ -180,34 +185,52 @@ def dog_vdi_read(dbg, port, vdi_name, offset=None, length=None):
     proc.wait()
     return data
 
-
 def dog_vdi_create(dbg, port, vdi_name, size):
     log.debug("%s: sbd_utils.dog_vdi_create: port: %s vdi_name: %s size: %s" % (dbg, port, vdi_name, size))
-    call(['dog', 'vdi', 'create', '-p', str(port), vdi_name, str(size)])
+    call(dbg, ['dog', 'vdi', 'create', '-p', str(port), vdi_name, str(size)])
 
 
 def dog_vdi_delete(dbg, port, vdi_name):
     log.debug("%s: sbd_utils.dog_vdi_delete: port: %s vdi_name: %s" % (dbg, port, vdi_name))
-    call(['dog', 'vdi', 'delete', '-p', str(port), vdi_name])
+    call(dbg, ['dog', 'vdi', 'delete', '-p', str(port), vdi_name])
 
 def dog_vdi_resize(dbg, port, vdi_name, new_size):
     log.debug("%s: sbd_utils.dog_vdi_resize: port: %s vdi_name: %s new_size: %s " % (dbg, port, vdi_name, new_size))
-    call(['dog', 'vdi', 'resize', '-p', str(port), vdi_name, new_size])
+    call(dbg, ['dog', 'vdi', 'resize', '-p', str(port), vdi_name, new_size])
 
 def dog_vdi_list(dbg, port):
     log.debug("%s: sbd_utils.dog_vdi_list: port: %s" % (dbg, port))
     vdis = []
     proc = Popen(['dog', 'vdi', 'list', '-p', str(port), '-r'], stdout=PIPE)
     for line in iter(proc.stdout.readline, ''):
-        vdis.append(line.split(' '))
+        vdis.append(line.split(' ')[1])
     return vdis
 
+def dog_vdi_info(dbg, port, vdi):
+    log.debug("%s: sbd_utils.dog_vdi_info: port: %s vdi: %s" % (dbg, port, vdi))
+    proc = Popen(['dog', 'vdi', 'list', '-p', str(port), '-r', vdi], stdout=PIPE)
+    for line in iter(proc.stdout.readline, ''):
+        return line.split(' ')
 
 def dog_node_info(dbg, port, node_id='Total'):
-    log.debug("%s: sbd_utils.dog_vdi_list: port: %s" % (dbg, port))
+    log.debug("%s: sbd_utils.dog_node_info: port: %s node_id: %s" % (dbg, port, node_id))
     proc = Popen(['dog', 'node', 'info', '-p', str(port), '-r'], stdout=PIPE)
     regex = re.compile("^%s" % node_id)
     for line in iter(proc.stdout.readline, ''):
         result = regex.match(line)
         if result:
             return line.split(' ')
+
+def dog_vdi_setattr(dbg, port, vdi_name, attr, val, exclusive=True):
+    log.debug("%s: xcpng.libsbd.sbd_utils.dog_vdi_setattr: port: %s vdi: %s attr: %s val: %s excl: %s" %
+              (dbg, port, vdi_name, attr, val, exclusive))
+    cmd = ['dog', 'vdi', 'setattr', '-p', str(port)]
+    if exclusive:
+        cmd.append('-x')
+    cmd.extend([vdi_name, attr, val])
+    call(dbg, cmd)
+
+def dog_vdi_delattr(dbg, port, vdi_name, attr):
+    log.debug("%s: xcpng.libsbd.sbd_utils.dog_vdi_delattr: port: %s vdi: %s attr: %s" %
+              (dbg, port, vdi_name, attr))
+    call(dbg, ['dog', 'vdi', 'setattr', '-p', str(port), '-d', vdi_name, attr])

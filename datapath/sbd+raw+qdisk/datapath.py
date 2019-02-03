@@ -14,11 +14,11 @@ if platform.linux_distribution()[1] == '7.5.0':
 elif platform.linux_distribution()[1] == '7.6.0':
     from xapi.storage.api.v5.datapath import Datapath_commandline, Unimplemented
 
-from xapi.storage.libs.xcpng.libsbd.datapath import SBDImplementation
+from xapi.storage.libs.xcpng.libsbd.datapath import Implementation, DATAPATHES
 
 if __name__ == "__main__":
     log.log_call_argv()
-    CMD = Datapath_commandline(SBDImplementation())
+    CMD = Datapath_commandline(Implementation(DATAPATHES))
     CMD_BASE = os.path.basename(sys.argv[0])
     if CMD_BASE == "Datapath.activate":
         CMD.activate()
