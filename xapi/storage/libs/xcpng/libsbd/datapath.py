@@ -6,7 +6,8 @@ from xapi.storage.libs.xcpng.datapath import DATAPATHES, Implementation
 from xapi.storage.libs.xcpng.datapath import QdiskDatapath as _QdiskDatapath_
 from xapi.storage.libs.xcpng.libsbd.qemudisk import Qemudisk
 from xapi.storage.libs.xcpng.libsbd.meta import MetadataHandler
-from xapi.storage.libs.xcpng.utils import call, _call, VDI_PREFIXES, get_vdi_type_by_uri, get_sr_uuid_by_uri
+from xapi.storage.libs.xcpng.utils import call, _call, SR_PATH_PREFIX, VDI_PREFIXES, get_vdi_type_by_uri, \
+                                          get_sr_uuid_by_uri
 from xapi.storage.libs.xcpng.libsbd.sbd_utils import get_sheep_port
 
 NBDS_MAX = 32
@@ -38,8 +39,12 @@ class QdiskDatapath(_QdiskDatapath_):
         if not chained:
             nbd_dev = self._find_unused_nbd_device(dbg)
             image_meta = self.MetadataHandler.load(dbg, uri)
-            call(dbg, ['/lib64/qemu-dp/bin/qemu-nbd', '-c', nbd_dev, '-f', 'raw', "sheepdog:%s%s" %
-                 (VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)], image_meta['dog_vdi_uuid'])])
+            call(dbg, ['/lib64/qemu-dp/bin/qemu-nbd',
+                       '-c', nbd_dev,
+                       '-f', 'raw',
+                       "sheepdog+unix:///%s%s?socket=%s" % (VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)],
+                                                           image_meta['dog_vdi_uuid'],
+                                                           "%s/%s/sock" % (SR_PATH_PREFIX, get_sr_uuid_by_uri(dbg, uri)))])
             image_meta = {'nbd_dev': nbd_dev}
             self.MetadataHandler.update(dbg, uri, image_meta)
             self.blkdev = nbd_dev
@@ -56,9 +61,12 @@ class QdiskDatapath(_QdiskDatapath_):
 
     def gen_vol_uri(self, dbg, uri):
         image_meta = self.MetadataHandler.load(dbg, uri)
-        return "sheepdog:127.0.0.1:%s:%s%s" % (get_sheep_port(dbg, get_sr_uuid_by_uri(dbg, uri)),
-                                               VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)],
-                                               image_meta['dog_vdi_uuid'])
+        return "sheepdog+unix:///%s%s?socket=%s" % (VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)],
+                                                    image_meta['dog_vdi_uuid'],
+                                                    "%s/%s/sock" % (SR_PATH_PREFIX, get_sr_uuid_by_uri(dbg, uri)))
+        #return "sheepdog:127.0.0.1:%s:%s%s" % (get_sheep_port(dbg, get_sr_uuid_by_uri(dbg, uri)),
+        #                                       VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)],
+        #                                       image_meta['dog_vdi_uuid'])
 
 
 DATAPATHES['qdisk'] = QdiskDatapath

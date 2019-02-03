@@ -13,8 +13,8 @@ from xapi.storage.libs.xcpng.libsbd.sbd_utils import create_chroot, delete_chroo
                                                      start_sheepdog_gateway, stop_sheepdog_gateway, \
                                                      gen_corosync_conf, write_corosync_conf, \
                                                      dog_node_info, dog_vdi_list, \
-                                                     get_sheep_port, free_sheep_port
-from xapi.storage.libs.xcpng.utils import POOL_PREFIX, SR_PATH_PREFIX, VDI_PREFIXES, \
+                                                     get_sheep_port, free_sheep_port, CHROOT_BASE
+from xapi.storage.libs.xcpng.utils import POOL_PREFIX, SR_PATH_PREFIX, VDI_PREFIXES, call, \
                                           get_sr_type_by_uri, get_sr_uuid_by_uri, mkdir_p, get_vdi_type_by_uri
 from xapi.storage.libs.xcpng.libsbd.meta import MetadataHandler
 
@@ -53,6 +53,11 @@ class SROperations(_SROperations_):
         start_sheepdog_gateway(dbg, get_sheep_port(dbg, sr_uuid), sr_uuid)
 
         mkdir_p("%s/%s" % (SR_PATH_PREFIX, get_sr_uuid_by_uri(dbg, uri)))
+
+        call(dbg, ['ln',
+                   '-s',
+                   "%s/%s/var/lib/sheepdog/sock" % (CHROOT_BASE,get_sr_uuid_by_uri(dbg, uri)),
+                   "%s/%s/sock" % (SR_PATH_PREFIX, get_sr_uuid_by_uri(dbg, uri))])
 
     def sr_export(self, dbg, uri):
         log.debug("%s: xcpng.libsbd.sr.SROperations.sr_export: uri: %s" % (dbg, uri))

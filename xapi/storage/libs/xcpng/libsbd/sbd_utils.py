@@ -60,7 +60,7 @@ def unset_chroot(dbg, name):
 def start_sheepdog_gateway(dbg, port, name):
     log.debug("%s: sbd_utils.start_sheepdog_gateway: port: %s name: %s " % (dbg, port, name))
     system("chroot %s/%s /usr/sbin/corosync" % (CHROOT_BASE, name))
-    system("chroot %s/%s /usr/sbin/sheep --bindaddr 0.0.0.0 --port %s --cluster corosync --log dir=/var/log,level=debug --gateway" %
+    system("chroot %s/%s /usr/sbin/sheep --bindaddr 0.0.0.0 --port %s --cluster corosync --log dir=/var/log,level=debug --gateway /var/lib/sheepdog" %
            (CHROOT_BASE, name, port))
     sleep(5)
 
