@@ -36,7 +36,7 @@ class QdiskDatapath(_QdiskDatapath_):
                 return nbd_device
 
     def map_vol(self, dbg, uri, chained=False):
-        if not chained:
+        if chained is False:
             nbd_dev = self._find_unused_nbd_device(dbg)
             image_meta = self.MetadataHandler.load(dbg, uri)
             call(dbg, ['/lib64/qemu-dp/bin/qemu-nbd',
@@ -52,7 +52,7 @@ class QdiskDatapath(_QdiskDatapath_):
             super(QdiskDatapath, self).map_vol(dbg, uri, chained=False)
 
     def unmap_vol(self, dbg, uri, chained=False):
-        if not chained:
+        if chained is False:
             super(QdiskDatapath, self).unmap_vol(dbg, uri, chained=False)
             image_meta = self.MetadataHandler.load(dbg, uri)
             call(dbg, ['/lib64/qemu-dp/bin/qemu-nbd', '-d', image_meta['nbd_dev']])
