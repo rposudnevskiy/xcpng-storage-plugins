@@ -99,7 +99,7 @@ class SROperations(_SROperations_):
 
     def get_sr_list(self, dbg, uri, configuration):
         log.debug("%s: xcpng.libsbd.sr.SROperations.get_sr_list: uri: %s configuration %s" % (dbg, uri, configuration))
-        return ["%s%s12345678-1234-1234-1234-123456789012" % (get_sr_type_by_uri(dbg, uri), POOL_PREFIX)]
+        return ["%s/12345678-1234-1234-1234-123456789012" % uri]
 
     def get_vdi_list(self, dbg, uri):
         log.debug("%s: xcpng.libsbd.sr.SROperations.get_vdi_list: uri: %s" % (dbg, uri))
