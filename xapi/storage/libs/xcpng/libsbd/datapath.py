@@ -1,23 +1,14 @@
 #!/usr/bin/env python
 
 from os.path import exists
-
-from xapi.storage.libs.xcpng.datapath import DATAPATHES, Implementation
-from xapi.storage.libs.xcpng.datapath import QdiskDatapath as _QdiskDatapath_
-from xapi.storage.libs.xcpng.libsbd.qemudisk import Qemudisk
-from xapi.storage.libs.xcpng.libsbd.meta import MetadataHandler
+from xapi.storage.libs.xcpng.datapath import DatapathOperations as _DatapathOperations_
+from xapi.storage.libs.xcpng.meta import IMAGE_UUID_TAG
 from xapi.storage.libs.xcpng.utils import call, _call, SR_PATH_PREFIX, VDI_PREFIXES, get_vdi_type_by_uri, \
                                           get_sr_uuid_by_uri
-from xapi.storage.libs.xcpng.libsbd.sbd_utils import get_sheep_port
 
 NBDS_MAX = 32
 
-class QdiskDatapath(_QdiskDatapath_):
-
-    def __init__(self):
-        super(QdiskDatapath, self).__init__()
-        self.MetadataHandler = MetadataHandler()
-        self.qemudisk = Qemudisk
+class DatapathOperations(_DatapathOperations_):
 
     def _is_nbd_device_connected(self, dbg, nbd_device):
         call(dbg, ['/usr/sbin/modprobe', 'nbd', "nbds_max=%s" % NBDS_MAX])
@@ -38,35 +29,25 @@ class QdiskDatapath(_QdiskDatapath_):
     def map_vol(self, dbg, uri, chained=False):
         if chained is False:
             nbd_dev = self._find_unused_nbd_device(dbg)
-            image_meta = self.MetadataHandler.load(dbg, uri)
             call(dbg, ['/lib64/qemu-dp/bin/qemu-nbd',
                        '-c', nbd_dev,
                        '-f', 'raw',
-                       "sheepdog+unix:///%s%s?socket=%s" % (VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)],
-                                                           image_meta['dog_vdi_uuid'],
-                                                           "%s/%s/sock" % (SR_PATH_PREFIX, get_sr_uuid_by_uri(dbg, uri)))])
-            image_meta = {'nbd_dev': nbd_dev}
-            self.MetadataHandler.update(dbg, uri, image_meta)
+                       self.gen_vol_uri(dbg, uri)])
+            volume_meta = {'nbd_dev': nbd_dev}
+            self.MetadataHandler.update_vdi_meta(dbg, uri, volume_meta)
             self.blkdev = nbd_dev
-
-            super(QdiskDatapath, self).map_vol(dbg, uri, chained=False)
+            super(DatapathOperations, self).map_vol(dbg, uri, chained=False)
 
     def unmap_vol(self, dbg, uri, chained=False):
         if chained is False:
-            super(QdiskDatapath, self).unmap_vol(dbg, uri, chained=False)
-            image_meta = self.MetadataHandler.load(dbg, uri)
-            call(dbg, ['/lib64/qemu-dp/bin/qemu-nbd', '-d', image_meta['nbd_dev']])
-            image_meta = {'nbd_dev': None}
-            self.MetadataHandler.update(dbg, uri, image_meta)
+            super(DatapathOperations, self).unmap_vol(dbg, uri, chained=False)
+            volume_meta = self.MetadataHandler.get_vdi_meta(dbg, uri)
+            call(dbg, ['/lib64/qemu-dp/bin/qemu-nbd', '-d', volume_meta['nbd_dev']])
+            volume_meta = {'nbd_dev': None}
+            self.MetadataHandler.update_vdi_meta(dbg, uri, volume_meta)
 
     def gen_vol_uri(self, dbg, uri):
-        image_meta = self.MetadataHandler.load(dbg, uri)
+        volume_meta = self.MetadataHandler.get_vdi_meta(dbg, uri)
         return "sheepdog+unix:///%s%s?socket=%s" % (VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)],
-                                                    image_meta['dog_vdi_uuid'],
+                                                    volume_meta[IMAGE_UUID_TAG],
                                                     "%s/%s/sock" % (SR_PATH_PREFIX, get_sr_uuid_by_uri(dbg, uri)))
-        #return "sheepdog:127.0.0.1:%s:%s%s" % (get_sheep_port(dbg, get_sr_uuid_by_uri(dbg, uri)),
-        #                                       VDI_PREFIXES[get_vdi_type_by_uri(dbg, uri)],
-        #                                       image_meta['dog_vdi_uuid'])
-
-
-DATAPATHES['qdisk'] = QdiskDatapath
